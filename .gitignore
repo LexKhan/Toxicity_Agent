@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.so
+
+# Virtual Environment
+venv/
+.env/
+.env
+
+# ML / RAG Specific
+faiss_index/
+*.faiss
+*.pkl
+
+# Model files
+*.pt
+*.pth
+*.bin
+*.h5
+*.ckpt
+
+# Large datasets
+data/train.csv
+data/*.csv
+data/*.json
+
+# Embeddings cache
+embeddings/
+chroma_db/
+
+# Streamlit
+.streamlit/
+
+# Logs
+logs/
+*.log
+
+# Secrets
+.env
+.env.local
+config.yaml
+
+# OS Files
+.DS_Store
+Thumbs.db
