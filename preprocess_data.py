@@ -1,19 +1,26 @@
 import pandas as pd
 import re
+import os
 from html import unescape
 
 class ToxicCommentPreprocessor:
     def __init__(self, input_path):
-        """Initialize with Kaggle toxic comment dataset"""
+        if not os.path.exists(input_path):
+            raise FileNotFoundError(
+                f"'{input_path}' not found.\n"
+                "Download the Jigsaw dataset from Kaggle and place train.csv in data/."
+            )
         self.df = pd.read_csv(input_path)
-        print(f"✅ Loaded {len(self.df)} comments")
+
+        # FIX: fill NaN label columns once, up-front
+        label_cols = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
+        for col in label_cols:
+            if col in self.df.columns:
+                self.df[col] = self.df[col].fillna(0).astype(int)
+
+        print(f" Loaded {len(self.df)} comments")
     
     def preprocess(self):
-        """Clean and prepare the dataset"""
-        print("\n" + "="*60)
-        print("PREPROCESSING KAGGLE TOXIC COMMENT DATASET")
-        print("="*60)
-        
         self.basic_cleaning()
         self.create_classification()
         self.balance_dataset()
@@ -23,188 +30,165 @@ class ToxicCommentPreprocessor:
         
         return self.df
     
-    def basic_cleaning(self):
-        """Remove problematic content"""
-        print("\n[1/6] Basic Cleaning...")
-        initial_count = len(self.df)
+    def _basic_cleaning(self):
+        before = len(self.df)
 
-        self.df = self.df.dropna(subset=['comment_text'])
-        self.df['comment_text'] = self.df['comment_text'].apply(self.clean_text)
-        self.df = self.df[self.df['comment_text'].str.len() >= 10]
-        self.df = self.df.drop_duplicates(subset=['comment_text'])
-        
-        print(f"   Removed {initial_count - len(self.df)} problematic rows")
-        print(f"   Remaining: {len(self.df)} comments")
+        self.df = self.df.dropna(subset=["comment_text"])
+        self.df["comment_text"] = self.df["comment_text"].apply(self._clean_text)
+        self.df = self.df[self.df["comment_text"].str.len() >= 10]
+        self.df = self.df.drop_duplicates(subset=["comment_text"])
+
+        # FIX: reset index after filtering to avoid misaligned iloc/loc later
+        self.df = self.df.reset_index(drop=True)
+        print(f"   Removed {before - len(self.df)} rows  |  Remaining: {len(self.df)}")
     
-    def clean_text(self, text):
-        """Clean individual comment"""
+    @staticmethod
+    def _clean_text(text: str) -> str:
         text = str(text)
         text = unescape(text)
-        text = re.sub(r'\n+', ' ', text)
-        text = re.sub(r'\s+', ' ', text)
-        text = re.sub(r'\[\[.*?\]\]', '', text)
-        text = re.sub(r'{{.*?}}', '', text)
-        text = re.sub(r'([!?.]){4,}', r'\1\1\1', text)
-        return text.strip()
+        text = re.sub(r"\n+", " ", text)
+        text = re.sub(r"\s+", " ", text)
+        text = re.sub(r"\[\[.*?\]\]", "", text)
+        text = re.sub(r"{{.*?}}", "", text)
+        text = re.sub(r"([!?.]){4,}", r"\1\1\1", text)
+
+        # FIX: strip surrounding quotes that break CSV re-parsing
+        text = text.strip('"').strip("'").strip()
+        return text
     
-    def create_classification(self):
-        """Convert multi-label to TOXIC/NEUTRAL/GOOD"""
-        print("\n[2/6] Creating Classifications...")
+    def _create_classification(self):
+
+        def classify(row) -> str:
+            if row["severe_toxic"] or row["threat"] or row["identity_hate"]:
+                return "TOXIC"
+            if row["insult"] or row["obscene"] or row["toxic"]:
+                return "TOXIC"
+            good_words = [
+                "thank", "great", "good", "awesome", "excellent",
+                "appreciate", "congratulations", "well done", "amazing",
+                "helpful", "wonderful", "fantastic", "brilliant",
+            ]
+            if any(w in row["comment_text"].lower() for w in good_words):
+                return "GOOD"
+            return "NEUTRAL"
         
-        def classify(row):
-            # Priority-based classification
-            if row['severe_toxic'] == 1 or row['threat'] == 1 or row['identity_hate'] == 1:
-                return 'TOXIC'
-            elif row['insult'] == 1 or row['obscene'] == 1 or row['toxic'] == 1:
-                return 'TOXIC'
-            else:
-                # Check for positive indicators
-                text_lower = row['comment_text'].lower()
-                good_words = ['thank', 'great', 'good', 'awesome', 'excellent', 
-                             'appreciate', 'congratulations', 'well done', 'hero']
-                
-                if any(word in text_lower for word in good_words):
-                    return 'GOOD'
-                else:
-                    return 'NEUTRAL'
-        
-        self.df['classification'] = self.df.apply(classify, axis=1)
-        
+        self.df["classification"] = self.df.apply(classify, axis=1)
+
         print("\n   Distribution:")
-        for label, count in self.df['classification'].value_counts().items():
-            print(f"   {label}: {count}")
+        for label, count in self.df["classification"].value_counts().items():
+            print(f"   {label}: {count:,}")
     
-    def balance_dataset(self, samples_per_class=1000):
-        """Balance to avoid bias"""
-        print(f"\n[3/6] Balancing Dataset ({samples_per_class} per class)...")
-        
-        toxic = self.df[self.df['classification'] == 'TOXIC'].sample(
-            n=min(samples_per_class, len(self.df[self.df['classification'] == 'TOXIC'])),
-            random_state=42
+    def _balance_dataset(self, samples_per_class: int = 1000):
+        parts = []
+
+        for cls in ("TOXIC", "NEUTRAL", "GOOD"):
+            subset = self.df[self.df["classification"] == cls]
+            n = min(samples_per_class, len(subset))
+            if n == 0:
+                print(f"   ⚠ No examples for class {cls} — skipping")
+                continue
+            parts.append(subset.sample(n=n, random_state=42))
+
+        if not parts:
+            raise ValueError("All classes empty after balancing. Check your dataset.")
+
+        self.df = (
+            pd.concat(parts, ignore_index=True)
+            .sample(frac=1, random_state=42)
+            .reset_index(drop=True)
         )
-        
-        neutral = self.df[self.df['classification'] == 'NEUTRAL'].sample(
-            n=min(samples_per_class, len(self.df[self.df['classification'] == 'NEUTRAL'])),
-            random_state=42
-        )
-        
-        good = self.df[self.df['classification'] == 'GOOD'].sample(
-            n=min(samples_per_class, len(self.df[self.df['classification'] == 'GOOD'])),
-            random_state=42
-        )
-        
-        self.df = pd.concat([toxic, neutral, good], ignore_index=True)
-        self.df = self.df.sample(frac=1, random_state=42).reset_index(drop=True)
-        
-        print(f"   Balanced to {len(self.df)} total comments")
+
+        print(f"   Balanced total: {len(self.df)}")
     
-    def generate_explanations(self):
-        """Generate explanation based on toxicity flags"""
+     def _generate_explanations(self):
         print("\n[4/6] Generating Explanations...")
-        
-        def create_explanation(row):
+
+        def explain(row) -> str:
             reasons = []
-            
-            if row['severe_toxic'] == 1:
-                reasons.append("severely toxic language")
-            if row['threat'] == 1:
-                reasons.append("threatening content")
-            if row['identity_hate'] == 1:
-                reasons.append("identity-based hate speech")
-            if row['insult'] == 1:
-                reasons.append("insulting language")
-            if row['obscene'] == 1:
-                reasons.append("obscene content")
-            if row['toxic'] == 1 and not reasons:
+            if row["severe_toxic"]:  reasons.append("severely toxic language")
+            if row["threat"]:        reasons.append("threatening content")
+            if row["identity_hate"]: reasons.append("identity-based hate speech")
+            if row["insult"]:        reasons.append("insulting language")
+            if row["obscene"]:       reasons.append("obscene content")
+            if row["toxic"] and not reasons:
                 reasons.append("toxic language")
-            
+
             if reasons:
                 return f"Contains {', '.join(reasons)}."
-            elif row['classification'] == 'GOOD':
+            if row["classification"] == "GOOD":
                 return "Positive and constructive communication."
-            else:
-                return "Neutral, factual communication without toxicity."
+            return "Neutral, factual communication without toxicity."
         
-        self.df['explanation'] = self.df.apply(create_explanation, axis=1)
-        print("   ✓ Explanations generated")
+        self.df["explanation"] = self.df.apply(explain, axis=1)
     
-    def generate_messages(self):
-        """Generate feedback messages for authors"""
-        print("\n[5/6] Generating Author Messages...")
+    def _generate_messages(self):
+        print("\n[5/6] Generating Author Messages …")
         
-        def create_message(row):
-            if row['classification'] == 'TOXIC':
-                if row['severe_toxic'] == 1:
-                    return "This content violates community guidelines and may cause serious harm. Please reconsider your language and approach."
-                elif row['threat'] == 1:
-                    return "Threatening language is not acceptable and may have legal consequences. Please express concerns without threats."
-                elif row['identity_hate'] == 1:
-                    return "This content contains discriminatory language targeting identity. Please treat all individuals with respect regardless of their background."
-                elif row['insult'] == 1:
-                    return "Personal attacks are not constructive. Please focus on discussing ideas rather than attacking individuals."
-                elif row['obscene'] == 1:
-                    return "Please keep language appropriate and respectful for all audiences."
-                else:
-                    return "This comment may be perceived as harmful or offensive. Consider rephrasing more constructively."
-            else:
+        def message(row) -> str:
+            if row["classification"] != "TOXIC":
                 return "N/A"
+            if row["severe_toxic"]:
+                return "This content violates community guidelines and may cause serious harm. Please reconsider your language."
+            if row["threat"]:
+                return "Threatening language is not acceptable and may have legal consequences. Please express concerns without threats."
+            if row["identity_hate"]:
+                return "This content contains discriminatory language. Please treat all individuals with respect regardless of their background."
+            if row["insult"]:
+                return "Personal attacks are not constructive. Please focus on ideas rather than attacking individuals."
+            if row["obscene"]:
+                return "Please keep language appropriate and respectful for all audiences."
+            return "This comment may be perceived as harmful. Consider rephrasing more constructively."
         
-        self.df['message_to_author'] = self.df.apply(create_message, axis=1)
-        print("   ✓ Author messages generated")
+        self.df["message_to_author"] = self.df.apply(message, axis=1)
+        print("   ✓ Done")
     
-    def validate(self):
-        """Final validation"""
-        print("\n[6/6] Validating Data...")
+    def _validate(self):
+        print("\n[6/6] Validating …")
+        required = ["comment_text", "classification", "explanation", "message_to_author"]
+        null_counts = self.df[required].isnull().sum()
         
-        required_cols = ['comment_text', 'classification', 'explanation', 'message_to_author']
-        missing = self.df[required_cols].isnull().sum()
-        
-        if missing.sum() == 0:
+        if null_counts.sum() == 0:
             print("   ✓ No missing values")
         else:
-            print("   ⚠ Missing values found:")
-            print(missing[missing > 0])
+            print("   Filling missing values:")
+            print(null_counts[null_counts > 0])
+            self.df["explanation"]      = self.df["explanation"].fillna("No explanation available.")
+            self.df["message_to_author"] = self.df["message_to_author"].fillna("N/A")
         
-        print(f"\n   Text length stats:")
-        print(f"   Min: {self.df['comment_text'].str.len().min()} chars")
-        print(f"   Max: {self.df['comment_text'].str.len().max()} chars")
-        print(f"   Avg: {self.df['comment_text'].str.len().mean():.0f} chars")
+        lengths = self.df["comment_text"].str.len()
+        print(f"   Text length — min:{lengths.min()}  max:{lengths.max()}  avg:{lengths.mean():.0f}")
     
-    def save(self, output_path='data/toxicity_examples.csv'):
-        """Save processed data"""
-        print(f"\n{'='*60}")
-        print("SAVING PROCESSED DATA")
-        print("="*60)
+    def save(self, output_path: str = "data/toxicity_examples.csv") -> pd.DataFrame:
+        print(f"\n SAVING PROCESSED DATA")
+
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        out = self.df[["classification", "comment_text", "explanation", "message_to_author"]].copy()
+        out.columns = ["classification", "content", "explanation", "message_to_author"]
         
-        # Keep only necessary columns and rename
-        output_df = self.df[['classification', 'comment_text', 'explanation', 'message_to_author']].copy()
-        output_df.columns = ['classification', 'content', 'explanation', 'message_to_author']
-        
-        output_df.to_csv(output_path, index=False)
-        print(f"✅ Saved {len(output_df)} examples to {output_path}")
-        
-        # Show sample
-        print("\n📋 Sample Examples:")
-        for classification in ['TOXIC', 'NEUTRAL', 'GOOD']:
-            sample = output_df[output_df['classification'] == classification].iloc[0]
-            print(f"\n{classification}:")
-            print(f"  Content: {sample['content'][:80]}...")
-            print(f"  Explanation: {sample['explanation']}")
+        # FIX: QUOTE_ALL prevents embedded commas/newlines from breaking the CSV
+        out.to_csv(output_path, index=False, quoting=1)
+        print(f" Saved {len(out):,} rows → {output_path}")
+
+        print("\n Sample per class:")
+        for cls in ("TOXIC", "NEUTRAL", "GOOD"):
+            row = out[out["classification"] == cls]
+            if len(row):
+                s = row.iloc[0]
+                print(f"\n  {cls}:")
+                print(f"    Content:     {s['content'][:80]} …")
+                print(f"    Explanation: {s['explanation']}")
         
         return output_df
 
 
 if __name__ == "__main__":
-    print("\n🚀 Starting Data Preprocessing...\n")
+    print("\n Starting Data Preprocessing …\n")
     
-    import os
-    if not os.path.exists('data/train.csv'):
-        print("❌ Error: train.csv not found!")
-        print("Please download the Kaggle Toxic Comment dataset and place train.csv in the data/ directory.")
-        exit(1)
+    os.makedirs("data", exist_ok=True)
+
+    preprocessor = ToxicCommentPreprocessor("data/train.csv")
+    preprocessor.preprocess()
+    preprocessor.save()
     
-    preprocessor = ToxicCommentPreprocessor('data/train.csv')
-    cleaned_df = preprocessor.preprocess()
-    output_df = preprocessor.save()
-    
-    print("\n✅ Preprocessing Complete!\n")
+    print("\n Preprocessing Complete!\n")
