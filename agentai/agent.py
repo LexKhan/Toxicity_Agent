@@ -52,7 +52,7 @@ class ToxicityAgent:
         elif s == "ambiguous":
             print(f"  Note: sarcasm was ambiguous — classified at face value")
 
-        print(f"\n  Explanation: {result['explanation']}")
+        print(f"\n  Responder: {result['explanation']}")
 
 
 if __name__ == "__main__":

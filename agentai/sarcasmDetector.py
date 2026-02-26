@@ -70,14 +70,20 @@ TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as o
 
         match is_sarcasm:
             case "sarcastic":
+                print("\n" + "-"*60)
                 print(f"     SarcasmDetector: SARCASTIC ({toxicity})")
                 print(f"     Original: {content[:80]}")
                 print(f"     Meaning:  {meaning[:80]}")
+                print("-"*60)
             case "ambiguous":
+                print("\n" + "-"*60)
                 print(f"     SarcasmDetector: AMBIGUOUS ({toxicity})")
                 print(f"     Original: {content[:80]}")
+                print("-"*60)
             case _:
+                print("\n" + "-"*60)
                 print(f"     SarcasmDetector: no sarcasm ({toxicity})")
+                print("-"*60)
         
         return {
             "is_sarcasm": is_sarcasm,  # "no" | "ambiguous" | "sarcastic"

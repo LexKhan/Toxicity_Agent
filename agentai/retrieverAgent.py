@@ -24,8 +24,9 @@ class RetrieverAgent:
                 "page_content":   doc.page_content,
             })
 
-
+        print("\n" + "-"*60)
         print(f"    RetrieverAgent: found {len(examples)} similar examples:")
         for i, e in enumerate(examples, 1):
             print(f"     [{i}] {e['classification']} — {e['content'][:80]}…")
+        print("-"*60)
         return examples

@@ -50,7 +50,7 @@ def main():
                 result = agent.detect_and_respond(content)
                 agent.display_result(result)
             else:
-                print("⚠️  No content entered.")
+                print("  No content entered.")
             
         elif choice == '2':
             print("\n Thank you for using the Toxicity Detection System!")

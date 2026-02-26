@@ -54,4 +54,5 @@ Reply with ONE word only — TOXIC, NEUTRAL, or GOOD. No punctuation. No explana
         raw = self.llm.invoke(prompt).strip().upper()
         match = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b', raw)
         label = match.group(1) if match else "NEUTRAL"
-        return label
+        print(f"     \nClassifier: {label.capitalize()}")
+        return label    

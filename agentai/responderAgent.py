@@ -54,5 +54,4 @@ Explanation: [your explanation]"""
         if not explanation:
             explanation = f"This content was classified as {classification}."
 
-        print(f"     Responder: explanation generated ({len(explanation)} chars)")
         return explanation
