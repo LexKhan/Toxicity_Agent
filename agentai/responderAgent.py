@@ -6,51 +6,53 @@ import re
 # author (only for TOXIC content).
 class ResponderAgent:
     def __init__(self, rag: ToxicityRAG):
-        self.llm = rag.llm
-        print("   ✅ ResponderAgent ready")
+        self.llm = rag.llm_qwen
+        print("   Responder ready")
 
-    def _build_prompt(self, content: str, classification: str) -> str:
-        if classification == "TOXIC":
-            extra = (
-                "Also write a short, respectful 'Message to Author' (1–2 sentences) "
-                "that tells the author why their comment is harmful and asks them to rephrase constructively."
+    def _build_prompt(self, content: str, classification: str, sarcasm_result: dict) -> str:
+        is_sarcasm = sarcasm_result["is_sarcasm"]
+        meaning    = sarcasm_result["meaning"]
+
+        sarcasm_context = ""
+        if is_sarcasm == "sarcastic":
+            sarcasm_context = (
+                f"\nThis text was identified as SARCASTIC.\n"
+                f"True meaning: \"{meaning}\"\n"
+                f"Mention the sarcastic nature in your explanation.\n"
             )
-        else:
-            extra = "Set 'Message to Author' to exactly: N/A"
+        elif is_sarcasm == "ambiguous":
+            sarcasm_context = (
+                "\nThis text may be sarcastic — intent is uncertain without more context.\n"
+                "Mention this ambiguity in your explanation.\n"
+            )
 
         return f"""You are a content moderation assistant explaining a classification decision.
 
-TEXT: \"\"\"{content}\"\"\"
+ORIGINAL TEXT: \"\"\"{content}\"\"\"
 CLASSIFICATION: {classification}
-
-Write a clear 2–3 sentence Explanation of WHY this text is classified as {classification}.
+{sarcasm_context}
+Write a clear 2–3 sentence explanation of WHY this text is classified as {classification}.
 Reference specific words or tone from the text.
-{extra}
 
-Use EXACTLY this format — no extra lines:
-Explanation: <your explanation here>
-Message to Author: <message or N/A>"""
+Respond in EXACTLY this format — no extra lines:
+Explanation: [your explanation]"""
 
-    def respond(self, content: str, classification: str) -> dict:
-        prompt = self._build_prompt(content, classification)
+    def respond(self, content: str, classification: str, sarcasm_result: dict) -> str:
+        prompt = self._build_prompt(content, classification, sarcasm_result)
         raw = self.llm.invoke(prompt)
 
         explanation = ""
         message = "N/A"
 
+        explanation = ""
         for line in raw.split("\n"):
             line = line.strip()
             if line.startswith("Explanation:"):
                 explanation = line.replace("Explanation:", "").strip()
-            elif line.startswith("Message to Author:"):
-                message = line.replace("Message to Author:", "").strip()
+                break
 
-        # Fallback if parsing failed
         if not explanation:
             explanation = f"This content was classified as {classification}."
 
-        print(f"    ResponderAgent: explanation generated ({len(explanation)} chars)")
-        return {
-            "explanation":       explanation,
-            "message_to_author": message,
-        }
+        print(f"     Responder: explanation generated ({len(explanation)} chars)")
+        return explanation

@@ -13,17 +13,19 @@ except ImportError:
 import pandas as pd
 import os
 
-FAISS_INDEX_PATH = "faiss_index"
+FAISS_INDEX_PATH  = "faiss_index"
 DEFAULT_DATA_PATH = "data/toxicity_examples.csv"
 EMBEDDING_MODEL   = "sentence-transformers/all-MiniLM-L6-v2"
-LLM_MODEL         = "qwen2.5:7b"
+LLM_QWEN          = "qwen2.5:7b"
+LLM_LLAMA         = "llama3.1:8b"
 LLM_TEMPERATURE   = 0.2
 
 class ToxicityRAG:
     def __init__(self, data_path: str = DEFAULT_DATA_PATH):
         self.data_path   = data_path
         self.vectorstore = None
-        self.llm         = None      # ← shared by all three agents
+        self.llm_qwen    = None
+        self.llm_llama   = None
 
         print("Initialising shared RAG backend …")
         self._setup()
@@ -39,12 +41,11 @@ class ToxicityRAG:
 
         df = pd.read_csv(self.data_path)
 
-        required = ["classification", "content", "explanation", "message_to_author"]
+        required = ["classification", "content", "explanation"]
         missing  = [c for c in required if c not in df.columns]
         if missing:
             raise ValueError(f"CSV is missing columns: {missing}")
 
-        # Drop nulls in critical columns
         df = df.dropna(subset=["content", "classification"]).reset_index(drop=True)
         print(f"   ✓ {len(df)} examples loaded")
 
@@ -53,15 +54,13 @@ class ToxicityRAG:
             page_content = (
                 f"Classification: {row['classification']}\n"
                 f"Content: {row['content']}\n"
-                f"Explanation: {row['explanation']}\n"
-                f"Message to Author: {row['message_to_author']}"
+                f"Explanation: {row['explanation']}"
             )
             doc = Document(
                 page_content=page_content,
                 metadata={
                     "classification": row["classification"],
-                    # Store a short snippet for display; agents get full text via page_content
-                    "content": str(row["content"])[:200],
+                    "content":        str(row["content"])[:200],
                 },
             )
             documents.append(doc)
@@ -75,7 +74,7 @@ class ToxicityRAG:
             model_kwargs={"device": "cpu"},
             encode_kwargs={"normalize_embeddings": True},
         )
-    
+
     def _build_vectorstore(self, embeddings: HuggingFaceEmbeddings):
         if os.path.exists(FAISS_INDEX_PATH):
             print(f"   Loading FAISS index from cache ({FAISS_INDEX_PATH}) …")
@@ -102,40 +101,25 @@ class ToxicityRAG:
 
         return vs
 
-    def _build_llm(self) -> OllamaLLM:
-        print(f"    Connecting to Ollama ({LLM_MODEL}) …")
-        llm = OllamaLLM(model=LLM_MODEL, temperature=LLM_TEMPERATURE)
+    def _connect_llm(self, model_name: str, temperature: float) -> OllamaLLM:
+        print(f"   Connecting to Ollama ({model_name}) …")
+        llm = OllamaLLM(model=model_name, temperature=temperature)
         try:
             llm.invoke("ping")
-            print(f"   ✓ Ollama / {LLM_MODEL} connected")
+            print(f"   ✓ {model_name} connected")
         except Exception as e:
             raise RuntimeError(
-                f"Cannot reach Ollama: {e}\n"
-                f"Make sure Ollama is running and '{LLM_MODEL}' is pulled.\n"
-                f"  ollama pull {LLM_MODEL}"
+                f"Cannot reach Ollama model '{model_name}': {e}\n"
+                f"Make sure Ollama is running and the model is pulled:\n"
+                f"  ollama pull {model_name}"
             ) from e
         return llm
-    
+
+    def _build_llms(self):
+        self.llm_qwen  = self._connect_llm(LLM_QWEN,  temperature=0.2)
+        self.llm_llama = self._connect_llm(LLM_LLAMA, temperature=0.3)
+
     def _setup(self):
         embeddings       = self._build_embeddings()
         self.vectorstore = self._build_vectorstore(embeddings)
-        self.llm         = self._build_llm()
-
-    def analyze_content(self, content: str) -> str:
-        docs = self.vectorstore.similarity_search(content, k=3)
-        context = "\n\n".join(d.page_content for d in docs)
-
-        prompt = f"""You are an expert content moderator.
-
-Reference examples:
-{context}
-
-Classify this content as TOXIC, NEUTRAL, or GOOD and explain why.
-Content: \"{content}\"
-
-Format:
-Classification: [TOXIC/NEUTRAL/GOOD]
-Explanation: [reason]
-Message to Author: [short message or N/A]"""
-
-        return self.llm.invoke(prompt)
+        self._build_llms()

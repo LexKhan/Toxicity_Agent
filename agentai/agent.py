@@ -1,58 +1,59 @@
 from rag_setup import ToxicityRAG
-from .retrieverAgent import RetrieverAgent
+from .retrieverAgent  import RetrieverAgent
 from .classifierAgent import ClassifierAgent
-from .responderAgent import ResponderAgent
+from .responderAgent  import ResponderAgent
+from .sarcasmDetector import SarcasmDetector
 
-import re
-
-# ORCHESTRATOR
-# Wires the three agents together into a single pipeline and
-# exposes the same public API as before so app.py and main.py
-# require zero changes.
 class ToxicityAgent:
     def __init__(self):
         self.rag = ToxicityRAG()
 
         print("\n  Initialising agents …")
         self.retriever  = RetrieverAgent(self.rag, k=4)
+        self.sarcasm    = SarcasmDetector(self.rag)
         self.classifier = ClassifierAgent(self.rag)
         self.responder  = ResponderAgent(self.rag)
-        print("  All 3 agents ready!")
+        print("  All agents ready!\n")
 
     def detect_and_respond(self, content: str) -> dict:
         print(f"  PIPELINE START")
-        print(f"  Input: {content[:100]}{'…' if len(content) > 100 else ''}")
+        print(f"  Input: {content[:100]}{'…' if len(content) > 100 else ''}\n")
 
-        examples = self.retriever.retrieve(content)
-        classification = self.classifier.classify(content, examples)
-        response = self.responder.respond(content, classification)
+        examples       = self.retriever.retrieve(content)
+        sarcasm_result = self.sarcasm.detect(content, examples)
+        classification = self.classifier.classify(content, sarcasm_result, examples)
+        explanation    = self.responder.respond(content, classification, sarcasm_result)
 
-        result = {
-            "classification":    classification,
-            "explanation":       response["explanation"],
-            "message_to_author": response["message_to_author"],
-            "retrieved_examples": examples,   # bonus data available to UI
+        print(f"\n  Pipeline complete → {classification} (sarcasm: {sarcasm_result['is_sarcasm']})")
+
+        return {
+            "classification":     classification,
+            "explanation":        explanation,
+            "retrieved_examples": examples,
+            "is_sarcasm":         sarcasm_result["is_sarcasm"],  # "no" | "ambiguous" | "sarcastic"
+            "meaning":            sarcasm_result["meaning"],
         }
-
-        print(f"\n  Pipeline complete → {classification}")
-        return result
 
     def display_result(self, result: dict) -> None:
-        colors = {
-            "TOXIC":   "\033[91m",
-            "NEUTRAL": "\033[93m",
-            "GOOD":    "\033[92m",
-            "UNKNOWN": "\033[0m",
-        }
-
-        icons = {"TOXIC": "🔴", "NEUTRAL": "🟡", "GOOD": "🟢", "UNKNOWN": "⚪"}
-        reset = "\033[0m"
+        colors = {"TOXIC": "\033[91m", "NEUTRAL": "\033[93m", "GOOD": "\033[92m"}
+        icons  = {"TOXIC": "🔴", "NEUTRAL": "🟡", "GOOD": "🟢"}
+        sarcasm_icons = {"no": "⚪", "ambiguous": "🟡", "sarcastic": "🟠"}
+        reset  = "\033[0m"
 
         c = result["classification"]
+        s = result["is_sarcasm"]
 
-        print(f"  ANALYSIS RESULT")
-        print(f"  {icons.get(c, '')} {colors.get(c, reset)}Classification: {c}{reset}\n")
+        print(f"\n  ANALYSIS RESULT")
+        print(f"  {icons.get(c, '')} {colors.get(c, reset)}Classification: {c}{reset}")
+        print(f"  {sarcasm_icons.get(s, '')} Sarcasm: {s}")
+
+        if s == "sarcastic":
+            print(f"  True meaning: {result['meaning']}")
+        elif s == "ambiguous":
+            print(f"  Note: sarcasm was ambiguous — classified at face value")
+
+        print(f"\n  Explanation: {result['explanation']}")
+
 
 if __name__ == "__main__":
     agent = ToxicityAgent()
-

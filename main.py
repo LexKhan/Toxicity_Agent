@@ -49,10 +49,6 @@ def main():
             if content.strip():
                 result = agent.detect_and_respond(content)
                 agent.display_result(result)
-                
-                # Ask if user wants to see the message
-                if result['classification'] == 'TOXIC':
-                    print(f"\n  ✅ Message (simulated):\n    {result['message_to_author']}\n")
             else:
                 print("⚠️  No content entered.")
             
