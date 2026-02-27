@@ -6,7 +6,7 @@ import re
 # classification-only prompt. No explanation generated here.
 class ClassifierAgent:
     def __init__(self, rag: ToxicityRAG):
-        self.llm = rag.llm_qwen
+        self.rag = rag 
         print("   Classifier ready")
 
     def _build_prompt(self, content: str, sarcasm_result: dict, examples: list) -> str:
@@ -47,12 +47,31 @@ SIMILAR LABELED EXAMPLES FOR REFERENCE:
 TEXT TO CLASSIFY:
 \"\"\"{meaning}\"\"\"
 
-Reply with ONE word only — TOXIC, NEUTRAL, or GOOD. No punctuation. No explanation."""
+Reply with EXACTLY TWO LABELS separated by a hyphen. First, provide the main category (TOXIC, NEUTRAL, or GOOD). Second, provide the exact specific sub-label from the definitions above that explains why. 
+
+Example formats: 
+TOXIC - HATE SPEECH
+NEUTRAL - DISAGREEMENTS WITHOUT HOSTILITY
+GOOD - SUPPORTIVE
+
+Reply with these LABELS ONLY. No extra punctuation other than the hyphen. No additional explanation."""
 
     def classify(self, content: str, sarcasm_result: dict, examples: list) -> str:
         prompt = self._build_prompt(content, sarcasm_result, examples)
-        raw = self.llm.invoke(prompt).strip().upper()
-        match = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b', raw)
-        label = match.group(1) if match else "NEUTRAL"
-        print(f"     \nClassifier: {label.capitalize()}")
-        return label    
+        raw = self.rag.llm_qwen.invoke(prompt).strip().upper()
+        match = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b\s*-\s*(.*)', raw)
+        self.rag.release_qwen()
+
+        if match:
+            TOXICITY = match.group(1).strip()
+            SUB_LABEL = match.group(2).strip()
+        else:
+            fallback_tox = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b', raw)
+            TOXICITY = fallback_tox.group(1) if fallback_tox else "NEUTRAL"
+
+            raw_cleaned = raw.replace(TOXICITY, '').strip(' -') if fallback_tox else ""
+            cleaned_sub = re.sub(r'[^A-Z\s]', '', raw_cleaned).strip()
+            SUB_LABEL = cleaned_sub if cleaned_sub else "UNKNOWN"
+        
+        print(f"     \nClassifier: {TOXICITY.capitalize()} - {SUB_LABEL.lower()}")
+        return TOXICITY, SUB_LABEL  

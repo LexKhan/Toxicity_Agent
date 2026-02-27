@@ -9,20 +9,22 @@ class ToxicityAgent:
         self.rag = ToxicityRAG()
 
         print("\n  Initialising agents …")
-        self.retriever  = RetrieverAgent(self.rag, k=4)
-        self.sarcasm    = SarcasmDetector(self.rag)
-        self.classifier = ClassifierAgent(self.rag)
-        self.responder  = ResponderAgent(self.rag)
+        self.translator = TranslatorAgent(self.rag)   # Agent 1 — Sailor
+        self.retriever  = RetrieverAgent(self.rag)    # Agent 2 — KNN, no LLM
+        self.sarcasm    = SarcasmDetector(self.rag)   # Agent 3 — LLaMA
+        self.classifier = ClassifierAgent(self.rag)   # Agent 4 — Qwen
+        self.responder  = ResponderAgent(self.rag)    # Agent 5 — Qwen
         print("  All agents ready!\n")
 
     def detect_and_respond(self, content: str) -> dict:
         print(f"  PIPELINE START")
         print(f"  Input: {content[:100]}{'…' if len(content) > 100 else ''}\n")
 
-        examples       = self.retriever.retrieve(content)
-        sarcasm_result = self.sarcasm.detect(content, examples)
-        classification = self.classifier.classify(content, sarcasm_result, examples)
-        explanation    = self.responder.respond(content, classification, sarcasm_result)
+        translated = self.translator.translate(content)
+        examples = self.retriever.retrieve(translated)
+        sarcasm_result = self.sarcasm.detect(translated, examples)
+        toxicity, sub_label = self.classifier.classify(translated, sarcasm_result, examples)
+        explanation = self.responder.respond(translated, toxicity, sub_label, sarcasm_result)
 
         print(f"\n  Pipeline complete → {classification} (sarcasm: {sarcasm_result['is_sarcasm']})")
 
@@ -53,7 +55,6 @@ class ToxicityAgent:
             print(f"  Note: sarcasm was ambiguous — classified at face value")
 
         print(f"\n  Responder: {result['explanation']}")
-
 
 if __name__ == "__main__":
     agent = ToxicityAgent()

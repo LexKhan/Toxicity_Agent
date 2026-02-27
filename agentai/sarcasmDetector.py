@@ -3,7 +3,7 @@ import re
 
 class SarcasmDetector:
     def __init__(self, rag: ToxicityRAG):
-        self.llm = rag.llm_llama   
+        self.rag = rag   
         print("   SarcasmDetector ready")
 
     def _build_prompt(self, content: str, examples: list) -> str:
@@ -47,8 +47,9 @@ TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as o
 
     def detect(self, content: str, examples: list) -> dict:
         prompt = self._build_prompt(content, examples)
-        raw_response = self.llm.invoke(prompt)
+        raw_response = self.llm_llama.invoke(prompt)
         raw = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+        self.rag.release_llama()
 
         # Parse response
         is_sarcasm = "no"       # "no" | "ambiguous" | "sarcastic"

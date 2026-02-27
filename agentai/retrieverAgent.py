@@ -5,8 +5,7 @@ import re
 # labeled examples from the FAISS vector store. Returns a list
 # of dicts with 'content', 'classification', 'explanation'.
 class RetrieverAgent:
-    def __init__(self, rag: ToxicityRAG, k: int = 4):
-        self.rag = rag
+    def __init__(self, k: int = 4):
         self.k = k
         print("   Retriever ready")
 
