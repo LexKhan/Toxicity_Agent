@@ -38,9 +38,9 @@ Reference specific words or tone from the text.
 Respond in EXACTLY this format — no extra lines:
 Explanation: [your explanation]"""
 
-    def respond(self, content: str, classification: str, sub_label: str, sub_label:str, sarcasm_result: dict) -> str:
-        prompt = self._build_prompt(content, classification, sarcasm_result)
-        raw = self.llm.invoke(prompt)
+    def respond(self, content: str, classification: str, sub_label: str, sarcasm_result: dict) -> str:
+        prompt = self._build_prompt(content, classification, sub_label, sarcasm_result)
+        raw = self.rag.llm_qwen.invoke(prompt)
         self.rag.release_qwen()
 
         explanation = ""

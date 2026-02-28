@@ -47,7 +47,7 @@ TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as o
 
     def detect(self, content: str, examples: list) -> dict:
         prompt = self._build_prompt(content, examples)
-        raw_response = self.llm_llama.invoke(prompt)
+        raw_response = self.rag.llm_llama.invoke(prompt)
         raw = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
         self.rag.release_llama()
 
@@ -73,13 +73,13 @@ TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as o
             case "sarcastic":
                 print("\n" + "-"*60)
                 print(f"     SarcasmDetector: SARCASTIC ({toxicity})")
-                print(f"     Original: {content[:80]}")
-                print(f"     Meaning:  {meaning[:80]}")
+                print(f"     Original: {content[:300]}")
+                print(f"     Meaning:  {meaning[:280]}")
                 print("-"*60)
             case "ambiguous":
                 print("\n" + "-"*60)
                 print(f"     SarcasmDetector: AMBIGUOUS ({toxicity})")
-                print(f"     Original: {content[:80]}")
+                print(f"     Original: {content[:300]}")
                 print("-"*60)
             case _:
                 print("\n" + "-"*60)

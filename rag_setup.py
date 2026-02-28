@@ -53,7 +53,7 @@ class ToxicityRAG:
 
         df = pd.read_csv(self.data_path)
 
-        required = ["classification", "content", "explanation"]
+        required = ["classification", "content", "explanation", "message_to_author"]
         missing  = [c for c in required if c not in df.columns]
         if missing:
             raise ValueError(f"CSV is missing columns: {missing}")
@@ -66,13 +66,16 @@ class ToxicityRAG:
             page_content = (
                 f"Classification: {row['classification']}\n"
                 f"Content: {row['content']}\n"
-                f"Explanation: {row['explanation']}"
+                f"Explanation: {row['explanation']}\n"
+                f"Message: {row['message_to_author']}"   # ← added
             )
             doc = Document(
                 page_content=page_content,
                 metadata={
-                    "classification": row["classification"],
-                    "content":        str(row["content"])[:200],
+                    "classification":    row["classification"],
+                    "content":           str(row["content"])[:200],
+                    "explanation":       str(row["explanation"]),
+                    "message_to_author": str(row["message_to_author"]),  # ← added
                 },
             )
             documents.append(doc)

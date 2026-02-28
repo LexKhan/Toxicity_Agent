@@ -3,7 +3,7 @@ import re
 
 # Responsibility: translates languages or mixed languages
 
-class translatorAgent:
+class TranslatorAgent:
     def __init__(self, rag: ToxicityRAG):
         self.rag = rag 
         print("   Translator ready")
@@ -37,8 +37,8 @@ TRANSLATED OUTPUT:"""
 
         print("\n" + "-"*60)
         print(f"   TranslatorAgent:")
-        print(f"   Original:    {content[:80]}")
-        print(f"   Translated:  {result[:80]}")
+        print(f"   Original:    {content[:300]}")
+        print(f"   Translated:  {result[:300]}")
         print("-"*60)
 
         return result

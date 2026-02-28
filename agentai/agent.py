@@ -3,6 +3,7 @@ from .retrieverAgent  import RetrieverAgent
 from .classifierAgent import ClassifierAgent
 from .responderAgent  import ResponderAgent
 from .sarcasmDetector import SarcasmDetector
+from .translatorAgent import TranslatorAgent
 
 class ToxicityAgent:
     def __init__(self):
@@ -10,7 +11,7 @@ class ToxicityAgent:
 
         print("\n  Initialising agents …")
         self.translator = TranslatorAgent(self.rag)   # Agent 1 — Sailor
-        self.retriever  = RetrieverAgent(self.rag)    # Agent 2 — KNN, no LLM
+        self.retriever  = RetrieverAgent(self.rag)    # Agent 2 — KNN
         self.sarcasm    = SarcasmDetector(self.rag)   # Agent 3 — LLaMA
         self.classifier = ClassifierAgent(self.rag)   # Agent 4 — Qwen
         self.responder  = ResponderAgent(self.rag)    # Agent 5 — Qwen
@@ -26,10 +27,10 @@ class ToxicityAgent:
         toxicity, sub_label = self.classifier.classify(translated, sarcasm_result, examples)
         explanation = self.responder.respond(translated, toxicity, sub_label, sarcasm_result)
 
-        print(f"\n  Pipeline complete → {classification} (sarcasm: {sarcasm_result['is_sarcasm']})")
+        print(f"\n  Pipeline complete → {toxicity} (sarcasm: {sarcasm_result['is_sarcasm']})")
 
         return {
-            "classification":     classification,
+            "classification":     toxicity,
             "explanation":        explanation,
             "retrieved_examples": examples,
             "is_sarcasm":         sarcasm_result["is_sarcasm"],  # "no" | "ambiguous" | "sarcastic"

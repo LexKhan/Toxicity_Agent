@@ -14,7 +14,7 @@ class ClassifierAgent:
         for i, ex in enumerate(examples, 1):
             example_block += (
                 f"  Example {i}:\n"
-                f"    Text: {ex['content'][:120]}\n"
+                f"    Text: {ex['content'][:300]}\n"
                 f"    Label: {ex['classification']}\n\n"
             )
 
@@ -60,7 +60,6 @@ Reply with these LABELS ONLY. No extra punctuation other than the hyphen. No add
         prompt = self._build_prompt(content, sarcasm_result, examples)
         raw = self.rag.llm_qwen.invoke(prompt).strip().upper()
         match = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b\s*-\s*(.*)', raw)
-        self.rag.release_qwen()
 
         if match:
             TOXICITY = match.group(1).strip()
