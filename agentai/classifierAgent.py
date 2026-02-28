@@ -1,23 +1,12 @@
 from rag_setup import ToxicityRAG
 import re
 
-# Responsibility: Given the original text + retrieved examples,
-# decide TOXIC / NEUTRAL / GOOD via a focused LLM call with a
-# classification-only prompt. No explanation generated here.
 class ClassifierAgent:
     def __init__(self, rag: ToxicityRAG):
-        self.rag = rag 
+        self.rag = rag
         print("   Classifier ready")
 
-    def _build_prompt(self, content: str, sarcasm_result: dict, examples: list) -> str:
-        example_block = ""
-        for i, ex in enumerate(examples, 1):
-            example_block += (
-                f"  Example {i}:\n"
-                f"    Text: {ex['content'][:300]}\n"
-                f"    Label: {ex['classification']}\n\n"
-            )
-
+    def _build_prompt(self, content: str, sarcasm_result: dict) -> str:
         is_sarcasm = sarcasm_result["is_sarcasm"]
         meaning    = sarcasm_result["meaning"]
 
@@ -35,6 +24,8 @@ class ClassifierAgent:
                 "Classify at face value, but be aware the true intent is uncertain.\n"
             )
 
+        text_to_classify = meaning if is_sarcasm == "sarcastic" else content  # Fix 2: was always `meaning`
+
         return f"""You are a strict content classification engine.
 
 DEFINITIONS:
@@ -42,10 +33,8 @@ DEFINITIONS:
 - NEUTRAL : factual statements, disagreements without hostility, questions, constructive criticism
 - GOOD    : supportive, encouraging, appreciative, respectful, constructive communication
 {sarcasm_note}
-SIMILAR LABELED EXAMPLES FOR REFERENCE:
-{example_block}
 TEXT TO CLASSIFY:
-\"\"\"{meaning}\"\"\"
+\"\"\"{text_to_classify}\"\"\"
 
 Reply with EXACTLY TWO LABELS separated by a hyphen. First, provide the main category (TOXIC, NEUTRAL, or GOOD). Second, provide the exact specific sub-label from the definitions above that explains why. 
 
@@ -56,13 +45,13 @@ GOOD - SUPPORTIVE
 
 Reply with these LABELS ONLY. No extra punctuation other than the hyphen. No additional explanation."""
 
-    def classify(self, content: str, sarcasm_result: dict, examples: list) -> str:
-        prompt = self._build_prompt(content, sarcasm_result, examples)
+    def classify(self, content: str, sarcasm_result: dict) -> str:
+        prompt = self._build_prompt(content, sarcasm_result)
         raw = self.rag.llm_qwen.invoke(prompt).strip().upper()
         match = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b\s*-\s*(.*)', raw)
 
         if match:
-            TOXICITY = match.group(1).strip()
+            TOXICITY  = match.group(1).strip()
             SUB_LABEL = match.group(2).strip()
         else:
             fallback_tox = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b', raw)
@@ -71,6 +60,6 @@ Reply with these LABELS ONLY. No extra punctuation other than the hyphen. No add
             raw_cleaned = raw.replace(TOXICITY, '').strip(' -') if fallback_tox else ""
             cleaned_sub = re.sub(r'[^A-Z\s]', '', raw_cleaned).strip()
             SUB_LABEL = cleaned_sub if cleaned_sub else "UNKNOWN"
-        
+
         print(f"     \nClassifier: {TOXICITY.capitalize()} - {SUB_LABEL.lower()}")
-        return TOXICITY, SUB_LABEL  
+        return TOXICITY, SUB_LABEL

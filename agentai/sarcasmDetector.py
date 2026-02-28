@@ -1,19 +1,11 @@
 from rag_setup import ToxicityRAG
-import re
 
 class SarcasmDetector:
     def __init__(self, rag: ToxicityRAG):
-        self.rag = rag   
+        self.rag = rag
         print("   SarcasmDetector ready")
 
-    def _build_prompt(self, content: str, examples: list) -> str:
-        example_block = ""
-        for i, ex in enumerate(examples, 1):
-            example_block += (
-                f"  Example {i}:\n"
-                f"    Text: {ex['content'][:120]}\n"
-                f"    Label: {ex['classification']}\n\n"
-            )
+    def _build_prompt(self, content: str) -> str:
 
         return f"""You are an expert at detecting sarcasm and irony in text.
 
@@ -33,9 +25,6 @@ TOXICITY SCALE:
   - NEUTRAL : no harmful or positive intent
   - TOXIC   : hateful, harmful, or offensive in true meaning
 
-SIMILAR EXAMPLES FROM DATABASE FOR CONTEXT:
-{example_block}
-
 TEXT TO ANALYSE:
 \"\"\"{content}\"\"\"
 
@@ -45,16 +34,15 @@ TOXICITY: [GOOD/NEUTRAL/TOXIC] (based on TRUE meaning, not literal words)
 TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as original text.]
         """
 
-    def detect(self, content: str, examples: list) -> dict:
-        prompt = self._build_prompt(content, examples)
+    def detect(self, content: str) -> dict:
+        prompt = self._build_prompt(content)
         raw_response = self.rag.llm_llama.invoke(prompt)
         raw = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
         self.rag.release_llama()
 
-        # Parse response
-        is_sarcasm = "no"       # "no" | "ambiguous" | "sarcastic"
-        toxicity = "NEUTRAL"    # "GOOD" | "NEUTRAL" | "TOXIC" — always reflects true meaning
-        meaning = content
+        is_sarcasm = "no"
+        toxicity   = "NEUTRAL"
+        meaning    = content
 
         for line in raw.split("\n"):
             line = line.strip()
@@ -85,11 +73,9 @@ TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as o
                 print("\n" + "-"*60)
                 print(f"     SarcasmDetector: no sarcasm ({toxicity})")
                 print("-"*60)
-        
+
         return {
-            "is_sarcasm": is_sarcasm,  # "no" | "ambiguous" | "sarcastic"
-            "toxicity":   toxicity,    # "GOOD" | "NEUTRAL" | "TOXIC" — based on true meaning
+            "is_sarcasm": is_sarcasm,
+            "toxicity":   toxicity,
             "meaning":    meaning,
         }
-    
-

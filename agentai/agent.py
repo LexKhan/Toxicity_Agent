@@ -1,38 +1,31 @@
 from rag_setup import ToxicityRAG
-from .retrieverAgent  import RetrieverAgent
 from .classifierAgent import ClassifierAgent
 from .responderAgent  import ResponderAgent
 from .sarcasmDetector import SarcasmDetector
-from .translatorAgent import TranslatorAgent
 
 class ToxicityAgent:
     def __init__(self):
         self.rag = ToxicityRAG()
 
         print("\n  Initialising agents …")
-        self.translator = TranslatorAgent(self.rag)   # Agent 1 — Sailor
-        self.retriever  = RetrieverAgent(self.rag)    # Agent 2 — KNN
-        self.sarcasm    = SarcasmDetector(self.rag)   # Agent 3 — LLaMA
-        self.classifier = ClassifierAgent(self.rag)   # Agent 4 — Qwen
-        self.responder  = ResponderAgent(self.rag)    # Agent 5 — Qwen
+        self.sarcasm    = SarcasmDetector(self.rag)   
+        self.classifier = ClassifierAgent(self.rag)   
+        self.responder  = ResponderAgent(self.rag)    
         print("  All agents ready!\n")
 
     def detect_and_respond(self, content: str) -> dict:
         print(f"  PIPELINE START")
         print(f"  Input: {content[:100]}{'…' if len(content) > 100 else ''}\n")
 
-        translated = self.translator.translate(content)
-        examples = self.retriever.retrieve(translated)
-        sarcasm_result = self.sarcasm.detect(translated, examples)
-        toxicity, sub_label = self.classifier.classify(translated, sarcasm_result, examples)
-        explanation = self.responder.respond(translated, toxicity, sub_label, sarcasm_result)
+        sarcasm_result = self.sarcasm.detect(content)
+        toxicity, sub_label = self.classifier.classify(content, sarcasm_result)
+        explanation = self.responder.respond(content, toxicity, sub_label, sarcasm_result)
 
         print(f"\n  Pipeline complete → {toxicity} (sarcasm: {sarcasm_result['is_sarcasm']})")
 
         return {
             "classification":     toxicity,
             "explanation":        explanation,
-            "retrieved_examples": examples,
             "is_sarcasm":         sarcasm_result["is_sarcasm"],  # "no" | "ambiguous" | "sarcastic"
             "meaning":            sarcasm_result["meaning"],
         }
