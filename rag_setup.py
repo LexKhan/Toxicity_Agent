@@ -1,57 +1,72 @@
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
 from langchain_ollama import OllamaLLM
-
-try:
-    from langchain_core.documents import Document
-except ImportError:
-    try:
-        from langchain.schema import Document
-    except ImportError:
-        from langchain.docstore.document import Document
-
-import pandas as pd
 import os
+from enum import Enum
 
-FAISS_INDEX_PATH  = "faiss_index"
-DEFAULT_DATA_PATH = "data/toxicity_examples.csv"
-EMBEDDING_MODEL   = "sentence-transformers/all-MiniLM-L6-v2"
+class LLMProvider(str, Enum):
+    LOCAL = "local"   # Ollama (demo)
+    GROQ  = "groq"    # Groq API (production)
 
-LLM_QWEN          = "qwen2.5:7b"
-LLM_LLAMA         = "llama3.1:8b"
-LLM_SAILOR        = "sailor2:8b"
+ACTIVE_PROVIDER = LLMProvider.LOCAL
+
+MODELS = {
+    LLMProvider.LOCAL: {
+        "qwen":  "qwen2.5:7b",
+        "llama": "llama3.1:8b",
+    },
+    LLMProvider.GROQ: {
+        "qwen":  "qwen3-32b",               # TODO: confirm exact Groq model string
+        "llama": "llama-3.3-70b-versatile",
+    },
+}
+
+LLM_QWEN  = MODELS[ACTIVE_PROVIDER]["qwen"]
+LLM_LLAMA = MODELS[ACTIVE_PROVIDER]["llama"]
+
+AGENT_MODELS = {
+    "sarcasm":    LLM_QWEN,
+    "classifier": LLM_LLAMA,
+    "responder":  LLM_LLAMA,
+}
+
 LLM_TEMPERATURE   = 0.2
 
 CTX_WINDOWS = {
-    LLM_SAILOR: 4096,   # translation needs longer input/output
-    LLM_LLAMA:  2048,   # sarcasm detection, shorter context fine
-    LLM_QWEN:   2048,   # classification + verdict, 7B tight on 6GB
+    LLM_QWEN:  2048,
+    LLM_LLAMA: 2048,
 }
-
-KEEP_ALIVE        = "0"           # Unload model from VRAM immediately after use
-os.environ["OLLAMA_KEEP_ALIVE"] = KEEP_ALIVE
 
 class ToxicityRAG:
     #
     # LLMs
     #
-    @property
-    def llm_sailor(self) -> OllamaLLM:
-        if self._llm_sailor is None:
-            self._llm_sailor = self._connect_llm(LLM_SAILOR, temperature=0.3)
-        return self._llm_sailor
 
-    @property
-    def llm_llama(self) -> OllamaLLM:
-        if self._llm_llama is None:
-            self._llm_llama = self._connect_llm(LLM_LLAMA, temperature=0.3)
-        return self._llm_llama
+    def __init__(self):
+        self._llm_qwen  = None
+        self._llm_llama = None
 
     @property
     def llm_qwen(self) -> OllamaLLM:
         if self._llm_qwen is None:
-            self._llm_qwen = self._connect_llm(LLM_QWEN, temperature=LLM_TEMPERATURE)
+            self._llm_qwen = self._connect_llm(LLM_QWEN)
         return self._llm_qwen
+
+    @property
+    def llm_llama(self) -> OllamaLLM:
+        if self._llm_llama is None:
+            self._llm_llama = self._connect_llm(LLM_LLAMA)
+        return self._llm_llama
+
+    @property
+    def llm_sarcasm(self) -> OllamaLLM:
+        return self.llm_qwen
+
+    @property
+    def llm_classifier(self) -> OllamaLLM:
+        return self.llm_llama
+
+    @property
+    def llm_responder(self) -> OllamaLLM:
+        return self.llm_llama
 
     def _release(self, attr: str, label: str):
         """Generic — evicts model from VRAM and nulls the Python reference."""
@@ -68,14 +83,32 @@ class ToxicityRAG:
     def release_llama(self):  self._release("_llm_llama",  "LLaMA")
     def release_qwen(self):   self._release("_llm_qwen",   "Qwen")
 
-    def _connect_llm(self, model_name: str, temperature: float) -> OllamaLLM:
-        ctx = CTX_WINDOWS.get(model_name, 2048)     # per-model context window
+    def _connect_llm(self, model_name: str) -> OllamaLLM:
+        """
+        Currently wires up Ollama for local demo.
+        TODO: when ACTIVE_PROVIDER == LLMProvider.GROQ, initialise
+              ChatGroq here instead and return it.
+        """
+        if ACTIVE_PROVIDER == LLMProvider.GROQ:
+            # Placeholder — swap in when setting up Groq:
+            #
+            #   from langchain_groq import ChatGroq
+            #   return ChatGroq(
+            #       model=model_name,
+            #       temperature=LLM_TEMPERATURE,
+            #       api_key=os.environ["GROQ_API_KEY"],
+            #   )
+            raise NotImplementedError(
+                "Groq provider selected but not yet configured. "
+                "Set ACTIVE_PROVIDER = LLMProvider.LOCAL for local demo."
+            )
+
+        ctx = CTX_WINDOWS.get(model_name, 2048)
         print(f"   Connecting to Ollama ({model_name}, ctx={ctx}) …")
         llm = OllamaLLM(
             model=model_name,
-            temperature=temperature,
+            temperature=LLM_TEMPERATURE,
             num_ctx=ctx,
-            keep_alive=KEEP_ALIVE,
         )
         try:
             llm.invoke("ping")
@@ -88,6 +121,3 @@ class ToxicityRAG:
             ) from e
         return llm
 
-    def _setup(self):
-        embeddings       = self._build_embeddings()
-        self.vectorstore = self._build_vectorstore(embeddings)

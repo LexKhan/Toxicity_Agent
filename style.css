@@ -1,0 +1,407 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
+
+/* ─── ROOT TOKENS ─────────────────────────────────────────── */
+:root {
+  --bg:           #0c0c0c;
+  --surface:      #161616;
+  --surface-2:    #1f1f1f;
+  --border:       #3a3a3a;
+  --border-light: #505050;
+
+  --toxic:        #e03030;
+  --toxic-dim:    #3a0a0a;
+  --toxic-glow:   #ff444433;
+
+  --neutral:      #d97f10;
+  --neutral-dim:  #2e1c00;
+  --neutral-glow: #ff990033;
+
+  --good:         #27ae60;
+  --good-dim:     #0a2e16;
+  --good-glow:    #33ff6633;
+
+  --sarcasm-yes:  #d97f10;
+  --sarcasm-no:   #27ae60;
+  --sarcasm-amb:  #c0a020;
+
+  --text:         #b0b0b0;
+  --text-bright:  #d8d8d8;
+  --text-dim:     #606060;
+  --accent:       #44ff88;
+
+  --font-pixel:   'VT323', monospace;
+  --font-mono:    'Share Tech Mono', monospace;
+  --px:           2px;
+}
+
+/* ─── GLOBAL ──────────────────────────────────────────────── */
+html, body, [data-testid="stAppViewContainer"] {
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: var(--font-mono) !important;
+}
+
+[data-testid="stHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"] {
+  background: transparent !important;
+  display: none !important;
+}
+
+[data-testid="stSidebar"] {
+  background-color: var(--surface) !important;
+  border-right: 2px solid var(--border) !important;
+}
+
+/* ─── PIXEL BORDER MIXIN ──────────────────────────────────── */
+.pixel-box {
+  border: 2px solid var(--border);
+  box-shadow:
+    inset 1px 1px 0 var(--border-light),
+    inset -1px -1px 0 #0a0a0a,
+    2px 2px 0 #000;
+  background: var(--surface);
+  image-rendering: pixelated;
+}
+
+/* ─── APP TITLE ───────────────────────────────────────────── */
+.app-title {
+  font-family: var(--font-pixel);
+  font-size: 2.6rem;
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-align: center;
+  text-shadow: 3px 3px 0 #003322, 0 0 20px #33ff8844;
+  margin-bottom: 4px;
+  padding-top: 1.5rem;
+}
+
+.app-subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: center;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+}
+
+/* ─── DIVIDER ─────────────────────────────────────────────── */
+.pixel-divider {
+  border: none;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--border) 0px, var(--border) 8px,
+    transparent 8px, transparent 12px
+  );
+  margin: 1.5rem 0;
+}
+
+/* ─── INPUT AREA ──────────────────────────────────────────── */
+.stTextArea textarea {
+  background-color: var(--surface-2) !important;
+  color: var(--text-bright) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.9rem !important;
+  border: 2px solid var(--border) !important;
+  border-radius: 0 !important;
+  box-shadow: inset 2px 2px 0 #000, 2px 2px 0 var(--border) !important;
+  caret-color: var(--accent);
+}
+
+.stTextArea textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: inset 2px 2px 0 #000, 0 0 8px var(--good-glow) !important;
+}
+
+/* ─── BUTTON ──────────────────────────────────────────────── */
+.stButton > button {
+  background-color: var(--good-dim) !important;
+  color: var(--accent) !important;
+  font-family: var(--font-pixel) !important;
+  font-size: 1rem !important;
+  letter-spacing: 2px !important;
+  border: 2px solid var(--good) !important;
+  border-radius: 0 !important;
+  padding: 0.5rem 2.5rem !important;
+  box-shadow: 3px 3px 0 #000 !important;
+  transition: all 0.08s !important;
+  text-transform: uppercase;
+}
+
+.stButton > button:hover {
+  background-color: var(--good) !important;
+  color: #000 !important;
+  box-shadow: 1px 1px 0 #000 !important;
+  transform: translate(2px, 2px);
+}
+
+.stButton > button:active {
+  box-shadow: none !important;
+  transform: translate(3px, 3px);
+}
+
+/* ─── MOTHER CONTAINER ────────────────────────────────────── */
+.mother-container {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  box-shadow:
+    inset 1px 1px 0 var(--border-light),
+    inset -1px -1px 0 #080808,
+    4px 4px 0 #000;
+  padding: 1.2rem;
+  margin-bottom: 1.4rem;
+  position: relative;
+  animation: fadeSlideIn 0.25s ease-out;
+}
+
+.mother-container::before {
+  content: attr(data-index);
+  position: absolute;
+  top: -1px;
+  right: 12px;
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  background: var(--surface);
+  padding: 0 6px;
+  letter-spacing: 2px;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── INPUT ECHO ──────────────────────────────────────────── */
+.input-echo {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  border-left: 3px solid var(--border);
+  padding: 0.4rem 0.8rem;
+  margin-bottom: 1rem;
+  background: var(--surface-2);
+  word-break: break-word;
+}
+
+.input-echo span {
+  color: var(--text-bright);
+}
+
+/* ─── SECTION LABEL ───────────────────────────────────────── */
+.section-label {
+  font-family: var(--font-pixel);
+  font-size: 0.65rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ─── CLASSIFIER CONTAINER ────────────────────────────────── */
+.classifier-container {
+  margin-bottom: 0.9rem;
+}
+
+.toxicity-badge {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 0.6rem 1rem;
+  border: 2px solid;
+  box-shadow: 3px 3px 0 #000;
+  min-width: 180px;
+}
+
+.toxicity-badge .tox-level {
+  font-family: var(--font-pixel);
+  font-size: 1.3rem;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+
+.toxicity-badge .tox-sub {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 4px;
+  opacity: 0.8;
+}
+
+.toxicity-badge.toxic {
+  border-color: var(--toxic);
+  background: var(--toxic-dim);
+  color: var(--toxic);
+  box-shadow: 3px 3px 0 #000, 0 0 12px var(--toxic-glow);
+}
+
+.toxicity-badge.neutral {
+  border-color: var(--neutral);
+  background: var(--neutral-dim);
+  color: var(--neutral);
+  box-shadow: 3px 3px 0 #000, 0 0 12px var(--neutral-glow);
+}
+
+.toxicity-badge.good {
+  border-color: var(--good);
+  background: var(--good-dim);
+  color: var(--good);
+  box-shadow: 3px 3px 0 #000, 0 0 12px var(--good-glow);
+}
+
+/* ─── SARCASM CONTAINER ───────────────────────────────────── */
+.sarcasm-container {
+  margin-bottom: 0.9rem;
+}
+
+.sarcasm-badge {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0.55rem 0.9rem;
+  border: 2px solid;
+  box-shadow: 3px 3px 0 #000;
+  max-width: 100%;
+}
+
+.sarcasm-badge .sarc-indicator {
+  font-family: var(--font-pixel);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.sarcasm-badge .sarc-meaning {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text);
+  border-left: 2px solid;
+  padding-left: 8px;
+  font-style: italic;
+  word-break: break-word;
+}
+
+.sarcasm-badge.sarcastic {
+  border-color: var(--sarcasm-yes);
+  background: var(--neutral-dim);
+  color: var(--sarcasm-yes);
+}
+.sarcasm-badge.sarcastic .sarc-meaning { border-color: var(--sarcasm-yes); }
+
+.sarcasm-badge.ambiguous {
+  border-color: var(--sarcasm-amb);
+  background: #1e1a00;
+  color: var(--sarcasm-amb);
+}
+.sarcasm-badge.ambiguous .sarc-meaning { border-color: var(--sarcasm-amb); }
+
+.sarcasm-badge.no-sarcasm {
+  border-color: var(--sarcasm-no);
+  background: var(--good-dim);
+  color: var(--sarcasm-no);
+}
+.sarcasm-badge.no-sarcasm .sarc-meaning { border-color: var(--sarcasm-no); }
+
+/* ─── RESPONDER CONTAINER ─────────────────────────────────── */
+.responder-container {
+  border-left: 3px solid var(--border-light);
+  padding: 0.5rem 0.8rem;
+  background: var(--surface-2);
+}
+
+.responder-container p {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ─── EMPTY STATE ─────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-dim);
+}
+
+.empty-state .empty-icon {
+  font-family: var(--font-pixel);
+  font-size: 1.4rem;
+  letter-spacing: 4px;
+  color: var(--border-light);
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ─── STATS BAR ───────────────────────────────────────────── */
+.stats-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+  flex-wrap: wrap;
+}
+
+.stat-chip {
+  font-family: var(--font-pixel);
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  box-shadow: 2px 2px 0 #000;
+}
+
+.stat-chip span { color: var(--text-bright); }
+.stat-chip.t span { color: var(--toxic); }
+.stat-chip.n span { color: var(--neutral); }
+.stat-chip.g span { color: var(--good); }
+
+/* ─── SCROLLBAR ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 1px solid #000;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+/* ─── STREAMLIT MISC OVERRIDES ────────────────────────────── */
+.stSpinner > div { border-top-color: var(--accent) !important; }
+
+label[data-testid="stWidgetLabel"] p {
+  font-family: var(--font-pixel) !important;
+  font-size: 0.7rem !important;
+  letter-spacing: 2px !important;
+  color: var(--text-dim) !important;
+  text-transform: uppercase;
+}
+
+[data-testid="stMarkdownContainer"] p {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.block-container {
+  max-width: 860px !important;
+  padding-top: 1rem !important;
+}

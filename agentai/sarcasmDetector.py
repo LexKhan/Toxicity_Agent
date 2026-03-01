@@ -36,9 +36,8 @@ TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as o
 
     def detect(self, content: str) -> dict:
         prompt = self._build_prompt(content)
-        raw_response = self.rag.llm_llama.invoke(prompt)
+        raw_response = self.rag.llm_sarcasm.invoke(prompt)
         raw = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
-        self.rag.release_llama()
 
         is_sarcasm = "no"
         toxicity   = "NEUTRAL"

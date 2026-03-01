@@ -47,7 +47,7 @@ Reply with these LABELS ONLY. No extra punctuation other than the hyphen. No add
 
     def classify(self, content: str, sarcasm_result: dict) -> str:
         prompt = self._build_prompt(content, sarcasm_result)
-        raw = self.rag.llm_qwen.invoke(prompt).strip().upper()
+        raw    = self.rag.llm_classifier.invoke(prompt).strip().upper()
         match = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b\s*-\s*(.*)', raw)
 
         if match:

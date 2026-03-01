@@ -40,8 +40,7 @@ Explanation: [your explanation]"""
 
     def respond(self, content: str, classification: str, sub_label: str, sarcasm_result: dict) -> str:
         prompt = self._build_prompt(content, classification, sub_label, sarcasm_result)
-        raw = self.rag.llm_qwen.invoke(prompt)
-        self.rag.release_qwen()
+        raw = self.rag.llm_responder.invoke(prompt)
 
         explanation = ""
         message = "N/A"
