@@ -6,39 +6,56 @@ class SarcasmDetector:
         print("   SarcasmDetector ready")
 
     def _build_prompt(self, content: str) -> str:
+        text_length = len(content.split())
 
-        return f"""You are an expert at detecting sarcasm and irony in text.
+        if text_length <= 16:
+            analysis_instruction = (
+                "This is a SHORT text. Analyze at the SURFACE/SEMANTIC level:\n"
+                "- Look at word choice, punctuation, emojis, and overall emotional tone\n"
+                "- Identify the use of slang, specifically noting if it is derogatory or if it causes a contradiction in the text's overall meaning\n"
+                "- Detect sentiment mismatch (e.g., positive words paired with negative emojis/punctuation, and vice versa)\n"
+                "- If truly impossible to judge, use UNKNOWN"
+            )
+        else:
+            analysis_instruction = (
+                "This is a LONGER text. Analyze at the CONTEXTUAL level:\n"
+                "- Look at the overall narrative and how the tone shifts\n"
+                "- Check if the conclusion contradicts the setup\n"
+                "- Detect irony through exaggeration, contradictions, or inconsistent emotional tone"
+            )
 
-Sarcasm means the LITERAL words differ from (and are often the opposite of) the TRUE MEANING. 
-While sarcasm can be mocking or harmful, it can also be completely NEUTRAL, humorous, or self-deprecating.
+        return f"""You are a sarcasm detection engine.
 
-Because you are analyzing SINGLE messages without conversation history, some messages will be impossible to judge. If the text is ambiguous and could easily be genuine OR sarcastic depending on context, classify it as UNKNOWN.
+    DEFINITIONS:
+    - YES      : the literal words mean the OPPOSITE of the true intent
+    - NO       : the text means exactly what it says
 
-Examples of varying sarcasm and ambiguity:
-  - "Oh great, another flat tire." → YES (true meaning: "This is terrible.")
-  - "Lovely weather for a picnic." (during a storm) → YES (true meaning: "The weather is awful.")
-  - "I really loved how Bob handled that meeting." → UNKNOWN (could be literal praise or deadpan sarcasm)
-  - "Thanks for nothing." → YES (true meaning: "I am upset you didn't help.")
+    TOXICITY (based on TRUE meaning, not literal words):
+    - GOOD     : positive, kind, or constructive
+    - NEUTRAL  : no harmful or positive intent
+    - TOXIC    : hateful, harmful, or offensive
 
-TOXICITY SCALE:
-  - GOOD    : positive, kind, constructive
-  - NEUTRAL : no harmful or positive intent
-  - TOXIC   : hateful, harmful, or offensive in true meaning
+    ANALYSIS APPROACH:
+    {analysis_instruction}
 
-TEXT TO ANALYSE:
-\"\"\"{content}\"\"\"
+    TEXT:
+    \"\"\"{content}\"\"\"
 
-Respond in EXACTLY this format — no extra lines:
-IS_SARCASTIC: [YES/NO/UNKNOWN]
-TOXICITY: [GOOD/NEUTRAL/TOXIC] (based on TRUE meaning, not literal words)
-TRUE_MEANING: [If YES: what the text ACTUALLY means. If NO or UNKNOWN: same as original text.]
-        """
+    Reply in EXACTLY this format with no extra text:
+    IS_SARCASTIC: [YES/NO/UNKNOWN]
+    TOXICITY: [GOOD/NEUTRAL/TOXIC]
+    TRUE_MEANING: [true meaning if YES, otherwise repeat the original text]"""
 
     def detect(self, content: str) -> dict:
         prompt = self._build_prompt(content)
         raw_response = self.rag.llm_sarcasm.invoke(prompt)
-        raw = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+        raw = raw_response.content if hasattr(raw_response, "content") else raw_response
+        raw = raw.strip().upper()
 
+        # strip <think> block if present (Qwen3 reasoning model)
+        if "<think>" in raw:
+            raw = raw.split("</think>")[-1].strip()
+            
         is_sarcasm = "no"
         toxicity   = "NEUTRAL"
         meaning    = content

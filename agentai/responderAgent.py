@@ -32,7 +32,7 @@ ORIGINAL TEXT: \"\"\"{content}\"\"\"
 TOXICITY_LEVEL: {classification}
 TYPE: {sub_label}
 {sarcasm_context}
-Write a clear 2–3 sentence explanation of WHY this text is classified as {classification} and {sub_label}.
+Write a clear 3 sentence explanation of WHY this text is classified as {classification} and {sub_label}.
 Reference specific words or tone from the text.
 
 Respond in EXACTLY this format — no extra lines:
@@ -40,19 +40,16 @@ Explanation: [your explanation]"""
 
     def respond(self, content: str, classification: str, sub_label: str, sarcasm_result: dict) -> str:
         prompt = self._build_prompt(content, classification, sub_label, sarcasm_result)
-        raw = self.rag.llm_responder.invoke(prompt)
+        raw_response = self.rag.llm_responder.invoke(prompt)
+        raw = raw_response.content if hasattr(raw_response, "content") else raw_response
 
-        explanation = ""
-        message = "N/A"
+        if "<think>" in raw:
+            raw = raw.split("</think>")[-1].strip()
+        match = re.search(r'Explanation:\s*(.+)', raw, re.IGNORECASE | re.DOTALL)
+        if match:
+            explanation = match.group(1).strip()
+        else:
+            explanation = raw.strip()
 
-        explanation = ""
-        for line in raw.split("\n"):
-            line = line.strip()
-            if line.startswith("Explanation:"):
-                explanation = line.replace("Explanation:", "").strip()
-                break
-
-        if not explanation:
-            explanation = f"This content was classified as {classification}."
-
+        print(f"     Responder: {explanation[:180]}{'…' if len(explanation) > 80 else ''}")
         return explanation

@@ -36,30 +36,41 @@ DEFINITIONS:
 TEXT TO CLASSIFY:
 \"\"\"{text_to_classify}\"\"\"
 
-Reply with EXACTLY TWO LABELS separated by a hyphen. First, provide the main category (TOXIC, NEUTRAL, or GOOD). Second, provide the exact specific sub-label from the definitions above that explains why. 
+OUTPUT ONE LINE ONLY. Stop immediately after the sub-label.
+Do not add periods, explanations, or any text after the sub-label.
 
-Example formats: 
 TOXIC - HATE SPEECH
-NEUTRAL - DISAGREEMENTS WITHOUT HOSTILITY
+NEUTRAL - FACTUAL STATEMENTS
 GOOD - SUPPORTIVE
 
 Reply with these LABELS ONLY. No extra punctuation other than the hyphen. No additional explanation."""
 
-    def classify(self, content: str, sarcasm_result: dict) -> str:
+    def classify(self, content: str, sarcasm_result: dict) -> tuple[str, str]:
         prompt = self._build_prompt(content, sarcasm_result)
-        raw    = self.rag.llm_classifier.invoke(prompt).strip().upper()
-        match = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b\s*-\s*(.*)', raw)
+        raw_response = self.rag.llm_classifier.invoke(prompt)
 
-        if match:
-            TOXICITY  = match.group(1).strip()
-            SUB_LABEL = match.group(2).strip()
-        else:
-            fallback_tox = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b', raw)
-            TOXICITY = fallback_tox.group(1) if fallback_tox else "NEUTRAL"
+        # extract text first, then strip <think>
+        raw = raw_response.content if hasattr(raw_response, "content") else raw_response
+        if "<think>" in raw:
+            raw = raw.split("</think>")[-1].strip()
 
-            raw_cleaned = raw.replace(TOXICITY, '').strip(' -') if fallback_tox else ""
-            cleaned_sub = re.sub(r'[^A-Z\s]', '', raw_cleaned).strip()
-            SUB_LABEL = cleaned_sub if cleaned_sub else "UNKNOWN"
+        # scan line by line — only trust lines that match the expected format
+        TOXICITY  = None
+        SUB_LABEL = None
 
-        print(f"     \nClassifier: {TOXICITY.capitalize()} - {SUB_LABEL.lower()}")
+        for line in raw.splitlines():
+            line = line.strip().upper()
+            match = re.match(r'^(TOXIC|NEUTRAL|GOOD)\s*-\s*([A-Z][A-Z\s]+?)$', line)
+            if match:
+                TOXICITY  = match.group(1).strip()
+                SUB_LABEL = match.group(2).strip()
+                break  # take the first valid line, ignore everything after
+
+        # fallback if no valid line found
+        if not TOXICITY:
+            fallback = re.search(r'\b(TOXIC|NEUTRAL|GOOD)\b', raw.upper())
+            TOXICITY  = fallback.group(1) if fallback else "NEUTRAL"
+            SUB_LABEL = "UNKNOWN"
+
+        print(f"     Classifier: {TOXICITY.capitalize()} - {SUB_LABEL.lower()}")
         return TOXICITY, SUB_LABEL

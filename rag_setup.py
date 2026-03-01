@@ -1,12 +1,29 @@
 from langchain_ollama import OllamaLLM
+from dotenv import load_dotenv
 import os
 from enum import Enum
 
-class LLMProvider(str, Enum):
-    LOCAL = "local"   # Ollama (demo)
-    GROQ  = "groq"    # Groq API (production)
+load_dotenv()
 
-ACTIVE_PROVIDER = LLMProvider.LOCAL
+# ---------------------------------------------------------------------------
+# Provider config
+# ---------------------------------------------------------------------------
+
+class LLMProvider(str, Enum):
+    LOCAL = "local"
+    GROQ  = "groq"
+
+ACTIVE_PROVIDER = LLMProvider.GROQ
+
+# ---------------------------------------------------------------------------
+# Shared settings — must be defined BEFORE MODEL_CONFIGS references them
+# ---------------------------------------------------------------------------
+
+LLM_TEMPERATURE = 0.2
+
+# ---------------------------------------------------------------------------
+# Models + configs
+# ---------------------------------------------------------------------------
 
 MODELS = {
     LLMProvider.LOCAL: {
@@ -14,36 +31,53 @@ MODELS = {
         "llama": "llama3.1:8b",
     },
     LLMProvider.GROQ: {
-        "qwen":  "qwen3-32b",               # TODO: confirm exact Groq model string
+        "qwen":  "qwen/qwen3-32b",
         "llama": "llama-3.3-70b-versatile",
     },
 }
 
+MODEL_CONFIGS = {
+    LLMProvider.GROQ: {
+        "qwen": {
+            "temperature":      0.3,
+            "reasoning_effort": "none",   # disables <think> blocks entirely — structured output is more reliable
+            "model_kwargs": {
+                "max_completion_tokens": 512,   # classifier/responder never need 4096
+                "top_p":                 0.9,
+            },
+        },
+    },
+    LLMProvider.LOCAL: {
+        "qwen":  {"temperature": LLM_TEMPERATURE},
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Resolved model names
+# ---------------------------------------------------------------------------
+
 LLM_QWEN  = MODELS[ACTIVE_PROVIDER]["qwen"]
-LLM_LLAMA = MODELS[ACTIVE_PROVIDER]["llama"]
 
 AGENT_MODELS = {
     "sarcasm":    LLM_QWEN,
-    "classifier": LLM_LLAMA,
-    "responder":  LLM_LLAMA,
+    "classifier": LLM_QWEN,
+    "responder":  LLM_QWEN,
 }
-
-LLM_TEMPERATURE   = 0.2
 
 CTX_WINDOWS = {
     LLM_QWEN:  2048,
-    LLM_LLAMA: 2048,
 }
 
-class ToxicityRAG:
-    #
-    # LLMs
-    #
+# ---------------------------------------------------------------------------
+# ToxicityRAG
+# ---------------------------------------------------------------------------
 
+class ToxicityRAG:
     def __init__(self):
         self._llm_qwen  = None
         self._llm_llama = None
 
+    # models
     @property
     def llm_qwen(self) -> OllamaLLM:
         if self._llm_qwen is None:
@@ -56,59 +90,46 @@ class ToxicityRAG:
             self._llm_llama = self._connect_llm(LLM_LLAMA)
         return self._llm_llama
 
+    # agents
     @property
     def llm_sarcasm(self) -> OllamaLLM:
         return self.llm_qwen
 
     @property
     def llm_classifier(self) -> OllamaLLM:
-        return self.llm_llama
+        return self.llm_qwen
 
     @property
     def llm_responder(self) -> OllamaLLM:
-        return self.llm_llama
+        return self.llm_qwen
 
-    def _release(self, attr: str, label: str):
-        """Generic — evicts model from VRAM and nulls the Python reference."""
-        llm = getattr(self, attr, None)
-        if llm is not None:
-            try:
-                llm.invoke("", options={"num_predict": 0})  # flush VRAM
-            except Exception:
-                pass
-            setattr(self, attr, None)
-            print(f"   ✓ {label} unloaded from VRAM")
+    def _connect_llm(self, model_name: str):
+        config = MODEL_CONFIGS[ACTIVE_PROVIDER]["qwen"]
 
-    def release_sailor(self): self._release("_llm_sailor", "Sailor2")
-    def release_llama(self):  self._release("_llm_llama",  "LLaMA")
-    def release_qwen(self):   self._release("_llm_qwen",   "Qwen")
-
-    def _connect_llm(self, model_name: str) -> OllamaLLM:
-        """
-        Currently wires up Ollama for local demo.
-        TODO: when ACTIVE_PROVIDER == LLMProvider.GROQ, initialise
-              ChatGroq here instead and return it.
-        """
         if ACTIVE_PROVIDER == LLMProvider.GROQ:
-            # Placeholder — swap in when setting up Groq:
-            #
-            #   from langchain_groq import ChatGroq
-            #   return ChatGroq(
-            #       model=model_name,
-            #       temperature=LLM_TEMPERATURE,
-            #       api_key=os.environ["GROQ_API_KEY"],
-            #   )
-            raise NotImplementedError(
-                "Groq provider selected but not yet configured. "
-                "Set ACTIVE_PROVIDER = LLMProvider.LOCAL for local demo."
+            from langchain_groq import ChatGroq
+            api_key = os.environ.get("GROQ_API_KEY")
+            if not api_key:
+                raise RuntimeError(
+                    "GROQ_API_KEY not found. "
+                    "Add it to your .env file: GROQ_API_KEY=your_key_here"
+                )
+            print(f"   Connecting to Groq ({model_name}) …")
+            llm = ChatGroq(
+                model=model_name,
+                api_key=api_key,
+                **config,
             )
+            print(f"   ✓ {model_name} connected")
+            return llm
 
+        # LOCAL — Ollama
         ctx = CTX_WINDOWS.get(model_name, 2048)
         print(f"   Connecting to Ollama ({model_name}, ctx={ctx}) …")
         llm = OllamaLLM(
             model=model_name,
-            temperature=LLM_TEMPERATURE,
             num_ctx=ctx,
+            **config,
         )
         try:
             llm.invoke("ping")
@@ -120,4 +141,3 @@ class ToxicityRAG:
                 f"  ollama pull {model_name}"
             ) from e
         return llm
-

@@ -2,12 +2,14 @@ from rag_setup import ToxicityRAG
 from .classifierAgent import ClassifierAgent
 from .responderAgent  import ResponderAgent
 from .sarcasmDetector import SarcasmDetector
+from .translatorAgent import TranslatorAgent
 
 class ToxicityAgent:
     def __init__(self):
         self.rag = ToxicityRAG()
 
         print("\n  Initialising agents …")
+        self.translator = TranslatorAgent(self.rag)
         self.sarcasm    = SarcasmDetector(self.rag)   
         self.classifier = ClassifierAgent(self.rag)   
         self.responder  = ResponderAgent(self.rag)    
@@ -16,18 +18,23 @@ class ToxicityAgent:
     def detect_and_respond(self, content: str) -> dict:
         print(f"  PIPELINE START")
         print(f"  Input: {content[:100]}{'…' if len(content) > 100 else ''}\n")
-
-        sarcasm_result = self.sarcasm.detect(content)
-        toxicity, sub_label = self.classifier.classify(content, sarcasm_result)
-        explanation = self.responder.respond(content, toxicity, sub_label, sarcasm_result)
+        
+        translation     = self.translator.translate(content)
+        working_content = translation["translated"]
+        sarcasm_result = self.sarcasm.detect(working_content)
+        toxicity, sub_label = self.classifier.classify(working_content, sarcasm_result)
+        explanation = self.responder.respond(working_content, toxicity, sub_label, sarcasm_result)
 
         print(f"\n  Pipeline complete → {toxicity} (sarcasm: {sarcasm_result['is_sarcasm']})")
 
         return {
             "classification":     toxicity,
             "explanation":        explanation,
-            "is_sarcasm":         sarcasm_result["is_sarcasm"],  # "no" | "ambiguous" | "sarcastic"
+            "is_sarcasm":         sarcasm_result["is_sarcasm"],
             "meaning":            sarcasm_result["meaning"],
+            "original":           content,
+            "detected_language":  translation["detected_language"],
+            "translated":         translation["translated"] if not translation["is_english"] else None,
         }
 
     def display_result(self, result: dict) -> None:
@@ -40,6 +47,8 @@ class ToxicityAgent:
         s = result["is_sarcasm"]
 
         print(f"\n  ANALYSIS RESULT")
+        if result["translated"]:
+            print(f"  Translated: {result['translated']}")
         print(f"  {icons.get(c, '')} {colors.get(c, reset)}Classification: {c}{reset}")
         print(f"  {sarcasm_icons.get(s, '')} Sarcasm: {s}")
 
