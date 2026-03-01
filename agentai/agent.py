@@ -29,6 +29,7 @@ class ToxicityAgent:
 
         return {
             "classification":     toxicity,
+            "sub_label":          sub_label,
             "explanation":        explanation,
             "is_sarcasm":         sarcasm_result["is_sarcasm"],
             "meaning":            sarcasm_result["meaning"],
